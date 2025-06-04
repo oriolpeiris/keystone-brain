@@ -1,6 +1,7 @@
 import os
 import streamlit as st
 import tempfile
+import pydantic
 
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -8,11 +9,9 @@ from langchain_community.vectorstores import FAISS
 from langchain_openai import OpenAIEmbeddings
 from langchain.chains.question_answering import load_qa_chain
 from langchain_community.chat_models import ChatOpenAI
-import pydantic
 
 # ─── Config ──────────────────────────────────────────────────
 
-CHROMA_DIR = "chroma_db"
 DOCS_DIR = "docs"
 os.makedirs(DOCS_DIR, exist_ok=True)
 
@@ -28,16 +27,21 @@ if not api_key:
     st.error("❌ OPENAI_API_KEY is missing. Please check your secrets.")
     st.stop()
 
-# ─── Initialize Embeddings & Vectorstore ────────────────────────────────────────
+# ─── Initialize Embeddings ───────────────────────────────────────────
 
 embeddings = OpenAIEmbeddings()
-vectorstore = FAISS(embedding_function=embeddings)
 
 # ─── File Upload ────────────────────────────────────────────
 
-uploaded_files = st.file_uploader("Upload PDF or Word documents", type=["pdf", "docx"], accept_multiple_files=True)
+uploaded_files = st.file_uploader(
+    "Upload PDF or Word documents", type=["pdf", "docx"], accept_multiple_files=True
+)
+
+vectorstore = None  # Will initialize later after documents are uploaded
 
 if uploaded_files:
+    all_splits = []
+
     for file in uploaded_files:
         ext = os.path.splitext(file.name)[1].lower()
         file_path = os.path.join(DOCS_DIR, file.name)
@@ -62,8 +66,11 @@ if uploaded_files:
         for doc in splits:
             doc.metadata["source"] = file.name
 
-        vectorstore.add_documents(splits)
+        all_splits.extend(splits)
         st.success(f"✅ {file.name} uploaded and indexed.")
+
+    # Now create the vectorstore from all collected document splits
+    vectorstore = FAISS.from_documents(all_splits, embeddings)
 
 # ─── Question Answering ────────────────────────────────────────
 
@@ -77,7 +84,6 @@ if question:
         st.write(response)
     else:
         st.warning("Please upload and index documents before asking questions.")
-        st.stop()
 
 # ─── Document Deletion ─────────────────────────────────────────
 
@@ -90,13 +96,11 @@ if st.checkbox("Delete a document from memory"):
         if st.button("Delete Document"):
             try:
                 os.remove(os.path.join(DOCS_DIR, file_to_delete))
-                vectorstore.delete(filter={"source": file_to_delete})
-                st.success(f"🗑️ {file_to_delete} removed from memory.")
+                st.success(f"🗑️ {file_to_delete} removed from disk.")
             except Exception as e:
                 st.error(f"❌ Failed to delete: {e}")
     else:
         st.info("No documents to delete.")
 
-# ─── Pydantic Debug Info ───
+# ─── Pydantic Debug Info ──────────────────────────────────────
 st.write("✅ Using Pydantic version:", pydantic.__version__)
-
