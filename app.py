@@ -4,35 +4,36 @@ import tempfile
 
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import Chroma
-from langchain_community.embeddings import OpenAIEmbeddings
+from langchain_community.vectorstores import FAISS
+from langchain_openai import OpenAIEmbeddings
 from langchain.chains.question_answering import load_qa_chain
-from langchain.chat_models import ChatOpenAI
+from langchain_community.chat_models import ChatOpenAI
+import pydantic
 
-# ─── Config ───────────────────────────────────────────────────────────────────
+# ─── Config ──────────────────────────────────────────────────
 
 CHROMA_DIR = "chroma_db"
 DOCS_DIR = "docs"
 os.makedirs(DOCS_DIR, exist_ok=True)
 
-# ─── Streamlit UI Setup ───────────────────────────────────────────────────────
+# ─── Streamlit UI Setup ──────────────────────────────────────────────
 
 st.set_page_config(page_title="Keystone Brain", layout="wide")
 st.title("🧠 Keystone Brain")
 
-# ─── API Key Check ────────────────────────────────────────────────────────────
+# ─── API Key Check ───────────────────────────────────────────────
 
 api_key = os.getenv("OPENAI_API_KEY", st.secrets.get("OPENAI_API_KEY"))
 if not api_key:
     st.error("❌ OPENAI_API_KEY is missing. Please check your secrets.")
     st.stop()
 
-# ─── Initialize Embeddings & Vectorstore ──────────────────────────────────────
+# ─── Initialize Embeddings & Vectorstore ────────────────────────────────────────
 
 embeddings = OpenAIEmbeddings()
-vectorstore = Chroma(persist_directory=CHROMA_DIR, embedding_function=embeddings)
+vectorstore = FAISS(embedding_function=embeddings)
 
-# ─── File Upload ──────────────────────────────────────────────────────────────
+# ─── File Upload ────────────────────────────────────────────
 
 uploaded_files = st.file_uploader("Upload PDF or Word documents", type=["pdf", "docx"], accept_multiple_files=True)
 
@@ -62,20 +63,23 @@ if uploaded_files:
             doc.metadata["source"] = file.name
 
         vectorstore.add_documents(splits)
-        vectorstore.persist()
         st.success(f"✅ {file.name} uploaded and indexed.")
 
-# ─── Question Answering ───────────────────────────────────────────────────────
+# ─── Question Answering ────────────────────────────────────────
 
 question = st.text_input("Ask a question based on all uploaded documents")
 if question:
-    docs = vectorstore.similarity_search(question, k=4)
-    chain = load_qa_chain(ChatOpenAI(model_name="gpt-4", temperature=0), chain_type="stuff")
-    response = chain.run(input_documents=docs, question=question)
-    st.markdown("### 💬 Answer")
-    st.write(response)
+    if vectorstore:
+        docs = vectorstore.similarity_search(question, k=4)
+        chain = load_qa_chain(ChatOpenAI(model_name="gpt-4", temperature=0), chain_type="stuff")
+        response = chain.run(input_documents=docs, question=question)
+        st.markdown("### 💬 Answer")
+        st.write(response)
+    else:
+        st.warning("Please upload and index documents before asking questions.")
+        st.stop()
 
-# ─── Document Deletion ────────────────────────────────────────────────────────
+# ─── Document Deletion ─────────────────────────────────────────
 
 st.markdown("---")
 st.subheader("🧹 Document Management")
@@ -87,10 +91,12 @@ if st.checkbox("Delete a document from memory"):
             try:
                 os.remove(os.path.join(DOCS_DIR, file_to_delete))
                 vectorstore.delete(filter={"source": file_to_delete})
-                vectorstore.persist()
                 st.success(f"🗑️ {file_to_delete} removed from memory.")
             except Exception as e:
                 st.error(f"❌ Failed to delete: {e}")
     else:
         st.info("No documents to delete.")
+
+# ─── Pydantic Debug Info ───
+st.write("✅ Using Pydantic version:", pydantic.__version__)
 
