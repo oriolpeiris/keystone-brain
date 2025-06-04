@@ -29,7 +29,7 @@ if not api_key:
 
 # ─── Initialize Embeddings & Vectorstore ──────────────────────────────────────
 
-embeddings = OpenAIEmbeddings(openai_api_key=api_key)
+embeddings = OpenAIEmbeddings()
 vectorstore = Chroma(persist_directory=CHROMA_DIR, embedding_function=embeddings)
 
 # ─── File Upload ──────────────────────────────────────────────────────────────
