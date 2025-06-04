@@ -1,6 +1,8 @@
 langchain==0.1.17
-langchain-community==0.0.34
+langchain-community==0.0.36
 pydantic==1.10.13
 chromadb==0.4.24
+
+
 
 
