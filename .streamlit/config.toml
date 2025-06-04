@@ -1,5 +1,5 @@
 [server]
 headless = true
 
-[python]
-version = "3.11"
+[global]
+pythonVersion = "3.11"
