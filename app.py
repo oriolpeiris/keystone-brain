@@ -29,7 +29,8 @@ if not api_key:
 
 # ─── Initialize Embeddings ───────────────────────────────────
 
-embeddings = OpenAIEmbeddings()
+embeddings = OpenAIEmbeddings(openai_api_key=api_key)
+
 
 # ─── File Upload ─────────────────────────────────────────────
 
