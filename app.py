@@ -15,29 +15,29 @@ from langchain_community.chat_models import ChatOpenAI
 DOCS_DIR = "docs"
 os.makedirs(DOCS_DIR, exist_ok=True)
 
-# ─── Streamlit UI Setup ──────────────────────────────────────────────
+# ─── Streamlit UI Setup ──────────────────────────────────────
 
 st.set_page_config(page_title="Keystone Brain", layout="wide")
 st.title("🧠 Keystone Brain")
 
-# ─── API Key Check ───────────────────────────────────────────────
+# ─── API Key Check ───────────────────────────────────────────
 
 api_key = os.getenv("OPENAI_API_KEY", st.secrets.get("OPENAI_API_KEY"))
 if not api_key:
     st.error("❌ OPENAI_API_KEY is missing. Please check your secrets.")
     st.stop()
 
-# ─── Initialize Embeddings ───────────────────────────────────────────
+# ─── Initialize Embeddings ───────────────────────────────────
 
 embeddings = OpenAIEmbeddings()
 
-# ─── File Upload ────────────────────────────────────────────
+# ─── File Upload ─────────────────────────────────────────────
 
 uploaded_files = st.file_uploader(
     "Upload PDF or Word documents", type=["pdf", "docx"], accept_multiple_files=True
 )
 
-vectorstore = None  # Will initialize later after documents are uploaded
+vectorstore = None  # Will be assigned below after upload
 
 if uploaded_files:
     all_splits = []
@@ -69,10 +69,10 @@ if uploaded_files:
         all_splits.extend(splits)
         st.success(f"✅ {file.name} uploaded and indexed.")
 
-    # Now create the vectorstore from all collected document splits
+    # ⬅️ Only run this after documents are uploaded
     vectorstore = FAISS.from_documents(all_splits, embeddings)
 
-# ─── Question Answering ────────────────────────────────────────
+# ─── Question Answering ──────────────────────────────────────
 
 question = st.text_input("Ask a question based on all uploaded documents")
 if question:
@@ -85,7 +85,7 @@ if question:
     else:
         st.warning("Please upload and index documents before asking questions.")
 
-# ─── Document Deletion ─────────────────────────────────────────
+# ─── Document Deletion ───────────────────────────────────────
 
 st.markdown("---")
 st.subheader("🧹 Document Management")
@@ -102,5 +102,6 @@ if st.checkbox("Delete a document from memory"):
     else:
         st.info("No documents to delete.")
 
-# ─── Pydantic Debug Info ──────────────────────────────────────
+# ─── Pydantic Debug Info ─────────────────────────────────────
+
 st.write("✅ Using Pydantic version:", pydantic.__version__)
